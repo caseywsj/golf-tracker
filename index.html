@@ -1,0 +1,1015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Ball Finder</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0f0d;
+    --surface: #111a15;
+    --surface2: #182218;
+    --border: #1e2e22;
+    --green: #2dff7a;
+    --green-dim: #1a9948;
+    --green-muted: #0f4a26;
+    --amber: #ffb340;
+    --amber-dim: #8a5e18;
+    --red: #ff4d4d;
+    --text: #e8f0ea;
+    --text-sec: #6b8a72;
+    --text-dim: #3a5040;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Header */
+  .header {
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+  }
+  .header-title {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--green);
+  }
+  .gps-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-sec);
+  }
+  .gps-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: background 0.3s;
+  }
+  .gps-dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .gps-dot.searching { background: var(--amber); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* Main scroll area */
+  .main { flex: 1; overflow-y: auto; padding: 16px 20px; }
+
+  /* Section label */
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    margin-top: 20px;
+  }
+  .section-label:first-child { margin-top: 0; }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+
+  /* GPS position display */
+  .coords-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .coord-cell {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .coord-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .coord-val {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--green);
+    letter-spacing: 0.02em;
+  }
+
+  /* Bearing display */
+  .bearing-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .compass-ring {
+    position: relative;
+    width: 64px; height: 64px;
+    flex-shrink: 0;
+  }
+  .compass-ring svg { width: 100%; height: 100%; }
+  .bearing-info { flex: 1; }
+  .bearing-val {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1;
+  }
+  .bearing-val span {
+    font-size: 14px;
+    color: var(--text-sec);
+    margin-left: 2px;
+  }
+  .bearing-dir {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--green);
+    margin-top: 4px;
+  }
+  .bearing-src {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  /* Input rows */
+  .input-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .input-group:last-child { border-bottom: none; padding-bottom: 0; }
+  .input-group:first-child { padding-top: 0; }
+  .input-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-sec);
+    min-width: 100px;
+    letter-spacing: 0.04em;
+  }
+  .input-group input[type=number] {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 16px;
+    padding: 10px 12px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    text-align: right;
+  }
+  .input-group input[type=number]:focus {
+    border-color: var(--green-dim);
+  }
+  .input-unit {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    min-width: 28px;
+  }
+
+  /* Slider for angle */
+  .angle-slider-wrap {
+    margin-top: 8px;
+    padding: 4px 0;
+  }
+  .angle-track {
+    position: relative;
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    margin: 8px 0;
+  }
+  .angle-fill {
+    position: absolute;
+    top: 0; height: 100%;
+    background: var(--green-dim);
+    border-radius: 2px;
+    transition: all 0.1s;
+  }
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: transparent;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--green);
+    cursor: pointer;
+    margin-top: -9px;
+    box-shadow: 0 0 10px rgba(45,255,122,0.3);
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    background: var(--surface2);
+    height: 4px;
+    border-radius: 2px;
+  }
+  .angle-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  /* Buttons */
+  .btn-calc {
+    width: 100%;
+    background: var(--green);
+    color: #030805;
+    border: none;
+    border-radius: 12px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    margin-top: 16px;
+    -webkit-tap-highlight-color: transparent;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn-calc:active { opacity: 0.8; transform: scale(0.98); }
+  .btn-calc:disabled { background: var(--green-muted); color: var(--text-dim); }
+
+  .btn-secondary {
+    width: 100%;
+    background: transparent;
+    color: var(--text-sec);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    margin-top: 8px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn-secondary:active { background: var(--surface2); }
+
+  /* Result card */
+  .result-card {
+    background: var(--surface);
+    border: 1px solid var(--green-muted);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 10px;
+    display: none;
+  }
+  .result-card.visible { display: block; }
+  .result-header {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--green-dim);
+    margin-bottom: 12px;
+  }
+  .result-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+  .metric {
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 10px 8px;
+    text-align: center;
+  }
+  .metric-val {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1;
+  }
+  .metric-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    letter-spacing: 0.06em;
+  }
+  .coords-display {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .coords-text {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--green);
+  }
+  .copy-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-sec);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .copy-btn:active { color: var(--green); }
+
+  /* Mini map canvas */
+  .map-wrap {
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+  }
+  .map-wrap canvas { display: block; width: 100%; }
+
+  /* Nav button */
+  .nav-btn {
+    width: 100%;
+    background: var(--green-muted);
+    color: var(--green);
+    border: 1px solid var(--green-dim);
+    border-radius: 10px;
+    padding: 14px;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .nav-btn:active { opacity: 0.8; }
+
+  /* Shot log */
+  .shot-log { list-style: none; }
+  .shot-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .shot-item:last-child { border-bottom: none; }
+  .shot-num {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .shot-detail { flex: 1; }
+  .shot-main {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+  }
+  .shot-coords {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+  .shot-nav {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--green-dim);
+    padding: 4px 8px;
+    border: 1px solid var(--green-muted);
+    border-radius: 6px;
+  }
+
+  /* Accuracy bar */
+  .acc-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .acc-bar {
+    flex: 1;
+    height: 4px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .acc-fill {
+    height: 100%;
+    background: var(--green-dim);
+    border-radius: 2px;
+    transition: width 0.5s;
+  }
+  .acc-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    min-width: 60px;
+    text-align: right;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--surface);
+    border: 1px solid var(--green-dim);
+    color: var(--green);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 20px;
+    border-radius: 20px;
+    opacity: 0;
+    transition: all 0.3s;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 100;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Error state */
+  .error-msg {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--red);
+    margin-top: 6px;
+    display: none;
+  }
+  .error-msg.visible { display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">Ball Finder</div>
+  <div class="gps-status">
+    <div class="gps-dot" id="gps-dot"></div>
+    <span id="gps-label">No GPS</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Position -->
+  <div class="section-label">Your position</div>
+  <div class="card">
+    <div class="coords-row">
+      <div class="coord-cell">
+        <div class="coord-label">Latitude</div>
+        <div class="coord-val" id="disp-lat">—</div>
+      </div>
+      <div class="coord-cell">
+        <div class="coord-label">Longitude</div>
+        <div class="coord-val" id="disp-lng">—</div>
+      </div>
+    </div>
+    <button class="btn-secondary" onclick="getGPS()">Get GPS position</button>
+    <div class="error-msg" id="gps-error">GPS unavailable — check browser permissions</div>
+  </div>
+
+  <!-- Bearing -->
+  <div class="section-label">Shot bearing</div>
+  <div class="card">
+    <div class="bearing-row">
+      <div class="compass-ring">
+        <svg viewBox="0 0 64 64" id="compass-svg">
+          <circle cx="32" cy="32" r="30" fill="none" stroke="#1e2e22" stroke-width="1.5"/>
+          <text x="32" y="10" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#3a5040">N</text>
+          <text x="32" y="59" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#3a5040">S</text>
+          <text x="8" y="35" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#3a5040">W</text>
+          <text x="56" y="35" text-anchor="middle" font-family="DM Mono" font-size="8" fill="#3a5040">E</text>
+          <line id="compass-needle" x1="32" y1="32" x2="32" y2="8" stroke="#2dff7a" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="32" cy="32" r="3" fill="#2dff7a"/>
+        </svg>
+      </div>
+      <div class="bearing-info">
+        <div class="bearing-val"><span id="bearing-val">—</span><span>°</span></div>
+        <div class="bearing-dir" id="bearing-dir">—</div>
+        <div class="bearing-src" id="bearing-src">tap compass to start</div>
+      </div>
+    </div>
+    <button class="btn-secondary" style="margin-top:12px" onclick="startCompass()">Use phone compass</button>
+    <div class="error-msg" id="compass-error">Compass unavailable — enter bearing manually below</div>
+
+    <!-- Manual bearing override -->
+    <div style="margin-top:12px">
+      <div class="input-group" style="border:none;padding:0">
+        <div class="input-label">Manual bearing</div>
+        <input type="number" id="manual-bearing" min="0" max="360" placeholder="270" style="max-width:100px">
+        <div class="input-unit">°</div>
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);font-family:var(--mono);margin-top:6px">
+        0=N · 90=E · 180=S · 270=W
+      </div>
+    </div>
+  </div>
+
+  <!-- Shot data -->
+  <div class="section-label">Shot data</div>
+  <div class="card">
+    <div class="input-group">
+      <div class="input-label">Carry distance</div>
+      <input type="number" id="carry" min="1" max="350" placeholder="100">
+      <div class="input-unit">yds</div>
+    </div>
+    <div class="input-group" style="flex-direction:column;align-items:stretch;gap:6px">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="input-label">Offline angle</div>
+        <div style="font-family:var(--mono);font-size:14px;color:var(--text)" id="angle-display">0°</div>
+      </div>
+      <input type="range" id="angle-slider" min="-30" max="30" value="0" step="0.5" oninput="updateAngle(this.value)">
+      <div class="angle-labels">
+        <span>30° Left</span>
+        <span>Center</span>
+        <span>30° Right</span>
+      </div>
+    </div>
+    <div class="input-group">
+      <div class="input-label">Wind drift</div>
+      <input type="number" id="drift" placeholder="0" value="0">
+      <div class="input-unit">yds</div>
+    </div>
+  </div>
+
+  <button class="btn-calc" onclick="calculate()">Calculate waypoint</button>
+
+  <!-- Result -->
+  <div class="result-card" id="result-card">
+    <div class="result-header">Landing waypoint</div>
+    <div class="result-metrics">
+      <div class="metric">
+        <div class="metric-val" id="r-carry">—</div>
+        <div class="metric-label">yards</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val" id="r-angle">—</div>
+        <div class="metric-label">offline</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val" id="r-radius">—</div>
+        <div class="metric-label">ft radius</div>
+      </div>
+    </div>
+    <div class="acc-row">
+      <div class="acc-bar"><div class="acc-fill" id="acc-fill" style="width:0%"></div></div>
+      <div class="acc-label" id="acc-label">—</div>
+    </div>
+    <div class="coords-display">
+      <div class="coords-text" id="r-coords">—</div>
+      <button class="copy-btn" onclick="copyCoords()">Copy</button>
+    </div>
+    <div class="map-wrap">
+      <canvas id="mini-map" height="180"></canvas>
+    </div>
+    <button class="nav-btn" onclick="openMaps()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+      Navigate to ball
+    </button>
+  </div>
+
+  <!-- Shot log -->
+  <div id="log-section" style="display:none">
+    <div class="section-label">Shot log</div>
+    <div class="card">
+      <ul class="shot-log" id="shot-log"></ul>
+    </div>
+  </div>
+
+  <div style="height:32px"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────
+let state = {
+  lat: null, lng: null,
+  bearing: null,
+  compassActive: false,
+  shots: [],
+  lastResult: null
+};
+
+// ── GPS ──────────────────────────────────────────────────────────
+function getGPS() {
+  const dot = document.getElementById('gps-dot');
+  const label = document.getElementById('gps-label');
+  dot.className = 'gps-dot searching';
+  label.textContent = 'Locating...';
+
+  if (!navigator.geolocation) {
+    showError('gps-error', 'Geolocation not supported');
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      state.lat = pos.coords.latitude;
+      state.lng = pos.coords.longitude;
+      const acc = Math.round(pos.coords.accuracy);
+      document.getElementById('disp-lat').textContent = state.lat.toFixed(6);
+      document.getElementById('disp-lng').textContent = state.lng.toFixed(6);
+      dot.className = 'gps-dot active';
+      label.textContent = '±' + acc + 'm';
+      hideError('gps-error');
+      toast('GPS acquired ±' + acc + 'm');
+    },
+    err => {
+      dot.className = 'gps-dot';
+      label.textContent = 'Failed';
+      showError('gps-error', 'GPS error: ' + err.message);
+    },
+    { enableHighAccuracy: true, timeout: 15000 }
+  );
+}
+
+// Auto-get GPS on load
+window.addEventListener('load', () => {
+  setTimeout(getGPS, 800);
+});
+
+// ── Compass ──────────────────────────────────────────────────────
+function startCompass() {
+  hideError('compass-error');
+
+  // iOS 13+ requires permission request
+  if (typeof DeviceOrientationEvent !== 'undefined' &&
+      typeof DeviceOrientationEvent.requestPermission === 'function') {
+    DeviceOrientationEvent.requestPermission()
+      .then(permission => {
+        if (permission === 'granted') {
+          attachCompass();
+        } else {
+          showError('compass-error', 'Compass permission denied');
+        }
+      })
+      .catch(() => showError('compass-error', 'Could not request compass permission'));
+  } else if (window.DeviceOrientationEvent) {
+    attachCompass();
+  } else {
+    showError('compass-error', 'No compass available on this device');
+  }
+}
+
+function attachCompass() {
+  state.compassActive = true;
+  document.getElementById('bearing-src').textContent = 'live compass';
+  toast('Compass active — aim phone down fairway');
+
+  window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+  window.addEventListener('deviceorientation', handleOrientation, true);
+}
+
+function handleOrientation(e) {
+  let bearing = null;
+
+  if (e.webkitCompassHeading !== undefined) {
+    // iOS: webkitCompassHeading is degrees from magnetic north, clockwise
+    bearing = e.webkitCompassHeading;
+  } else if (e.absolute && e.alpha !== null) {
+    // Android absolute
+    bearing = (360 - e.alpha) % 360;
+  } else if (e.alpha !== null) {
+    bearing = (360 - e.alpha) % 360;
+  }
+
+  if (bearing === null) return;
+
+  bearing = Math.round(bearing);
+  state.bearing = bearing;
+
+  document.getElementById('bearing-val').textContent = bearing;
+  document.getElementById('bearing-dir').textContent = bearingToDir(bearing);
+
+  // Rotate needle
+  const needle = document.getElementById('compass-needle');
+  const cx = 32, cy = 32, len = 24;
+  const rad = (bearing - 90) * Math.PI / 180;
+  const x2 = cx + len * Math.cos(rad);
+  const y2 = cy + len * Math.sin(rad);
+  needle.setAttribute('x2', x2.toFixed(1));
+  needle.setAttribute('y2', y2.toFixed(1));
+}
+
+function bearingToDir(b) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(b / 22.5) % 16];
+}
+
+// ── Angle slider ─────────────────────────────────────────────────
+function updateAngle(val) {
+  const v = parseFloat(val);
+  const label = v === 0 ? '0° Center' :
+    v > 0 ? '+' + v.toFixed(1) + '° Right' :
+    v.toFixed(1) + '° Left';
+  document.getElementById('angle-display').textContent = label;
+}
+
+// ── Math ─────────────────────────────────────────────────────────
+function toRad(d) { return d * Math.PI / 180; }
+function toDeg(r) { return r * 180 / Math.PI; }
+
+function destinationPoint(lat, lng, bearing, distMeters) {
+  const R = 6371000;
+  const d = distMeters / R;
+  const b = toRad(bearing);
+  const lat1 = toRad(lat), lng1 = toRad(lng);
+  const lat2 = Math.asin(Math.sin(lat1)*Math.cos(d) + Math.cos(lat1)*Math.sin(d)*Math.cos(b));
+  const lng2 = lng1 + Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(lat1), Math.cos(d)-Math.sin(lat1)*Math.sin(lat2));
+  return { lat: toDeg(lat2), lng: toDeg(lng2) };
+}
+
+// ── Calculate ────────────────────────────────────────────────────
+function calculate() {
+  // Get bearing — prefer compass, then manual input
+  let bearing = state.bearing;
+  const manualBearing = parseFloat(document.getElementById('manual-bearing').value);
+  if (!isNaN(manualBearing)) bearing = manualBearing;
+
+  const lat = state.lat;
+  const lng = state.lng;
+  const carry = parseFloat(document.getElementById('carry').value);
+  const angle = parseFloat(document.getElementById('angle-slider').value);
+  const drift = parseFloat(document.getElementById('drift').value) || 0;
+
+  // Validation
+  if (lat === null || lng === null) { toast('Get GPS position first'); return; }
+  if (isNaN(bearing)) { toast('Set bearing — use compass or enter manually'); return; }
+  if (isNaN(carry) || carry <= 0) { toast('Enter carry distance'); return; }
+
+  const yardsToMeters = 0.9144;
+  const carryM = carry * yardsToMeters;
+  const totalBearing = (bearing + angle + 360) % 360;
+
+  // Forward point
+  const fwd = destinationPoint(lat, lng, totalBearing, carryM);
+
+  // Apply lateral drift
+  const driftBearing = (bearing + 90 + 360) % 360;
+  const land = destinationPoint(fwd.lat, fwd.lng, driftBearing, drift * yardsToMeters);
+
+  // Search radius
+  const distErr = 0.02; // 2% radar error
+  const angErr = 3; // degrees
+  const radiusYds = Math.sqrt(
+    Math.pow(carry * distErr, 2) +
+    Math.pow(carry * Math.sin(toRad(angErr)), 2)
+  );
+  const radiusFt = Math.max(15, Math.round(radiusYds * 3));
+  const confidence = Math.max(20, Math.min(95, Math.round(100 - radiusFt * 0.5)));
+
+  // Store result
+  state.lastResult = { lat, lng, landLat: land.lat, landLng: land.lng, carry, angle, bearing, radiusFt };
+
+  // Update UI
+  document.getElementById('r-carry').textContent = carry;
+  document.getElementById('r-angle').textContent = (angle >= 0 ? '+' : '') + angle.toFixed(1) + '°';
+  document.getElementById('r-radius').textContent = radiusFt;
+  document.getElementById('r-coords').textContent = land.lat.toFixed(6) + ', ' + land.lng.toFixed(6);
+  document.getElementById('acc-fill').style.width = confidence + '%';
+  document.getElementById('acc-label').textContent = confidence + '% conf';
+
+  document.getElementById('result-card').classList.add('visible');
+
+  // Draw map
+  drawMap(lat, lng, land.lat, land.lng, radiusFt);
+
+  // Log shot
+  const shot = {
+    n: state.shots.length + 1,
+    carry, angle, bearing,
+    lat: land.lat, lng: land.lng,
+    radiusFt,
+    time: new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+  };
+  state.shots.unshift(shot);
+  renderLog();
+
+  toast('Waypoint calculated');
+  window.scrollTo({ top: document.getElementById('result-card').offsetTop - 16, behavior: 'smooth' });
+}
+
+// ── Mini map ─────────────────────────────────────────────────────
+function drawMap(fromLat, fromLng, toLat, toLng, radiusFt) {
+  const canvas = document.getElementById('mini-map');
+  canvas.width = canvas.offsetWidth || 335;
+  const W = canvas.width, H = 180;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#111a15';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(30,46,34,0.8)';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 36) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for (let y = 0; y < H; y += 36) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  const pad = 36;
+  const latRange = Math.abs(toLat - fromLat) || 0.001;
+  const lngRange = Math.abs(toLng - fromLng) || 0.001;
+  const minLat = Math.min(fromLat, toLat) - latRange * 0.6;
+  const maxLat = Math.max(fromLat, toLat) + latRange * 0.6;
+  const minLng = Math.min(fromLng, toLng) - lngRange * 0.6;
+  const maxLng = Math.max(fromLng, toLng) + lngRange * 0.6;
+
+  const proj = (lat, lng) => ({
+    x: pad + (lng - minLng) / (maxLng - minLng) * (W - 2*pad),
+    y: H - pad - (lat - minLat) / (maxLat - minLat) * (H - 2*pad)
+  });
+
+  const fp = proj(fromLat, fromLng);
+  const tp = proj(toLat, toLng);
+
+  // Shot line
+  ctx.beginPath();
+  ctx.moveTo(fp.x, fp.y);
+  ctx.lineTo(tp.x, tp.y);
+  ctx.strokeStyle = 'rgba(45,255,122,0.2)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4,4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Search radius
+  const radiusYds = radiusFt / 3;
+  const radiusM = radiusYds * 0.9144;
+  const metersPerPx = (maxLat - minLat) * 111139 / (H - 2*pad);
+  const radiusPx = Math.max(8, radiusM / metersPerPx);
+
+  ctx.beginPath();
+  ctx.arc(tp.x, tp.y, radiusPx, 0, 2*Math.PI);
+  ctx.strokeStyle = 'rgba(45,255,122,0.4)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3,3]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(45,255,122,0.07)';
+  ctx.fill();
+
+  // From dot (you)
+  ctx.beginPath(); ctx.arc(fp.x, fp.y, 6, 0, 2*Math.PI);
+  ctx.fillStyle = '#1a9948'; ctx.fill();
+  ctx.beginPath(); ctx.arc(fp.x, fp.y, 3, 0, 2*Math.PI);
+  ctx.fillStyle = '#2dff7a'; ctx.fill();
+
+  // To dot (ball)
+  ctx.beginPath(); ctx.arc(tp.x, tp.y, 7, 0, 2*Math.PI);
+  ctx.fillStyle = '#ffb340'; ctx.fill();
+  ctx.beginPath(); ctx.arc(tp.x, tp.y, 3, 0, 2*Math.PI);
+  ctx.fillStyle = '#fff'; ctx.fill();
+
+  // Labels
+  ctx.font = '10px DM Mono, monospace';
+  ctx.fillStyle = 'rgba(107,138,114,0.9)';
+  ctx.fillText('You', fp.x + 9, fp.y - 8);
+  ctx.fillStyle = 'rgba(255,179,64,0.9)';
+  ctx.fillText('Ball?', tp.x + 9, tp.y - 10);
+}
+
+// ── Navigation ───────────────────────────────────────────────────
+function openMaps() {
+  if (!state.lastResult) return;
+  const { landLat, landLng } = state.lastResult;
+  // Try Apple Maps first (works on iOS), fallback to Google Maps
+  const url = `maps://maps.apple.com/?daddr=${landLat},${landLng}&dirflg=w`;
+  const fallback = `https://maps.google.com/?q=${landLat},${landLng}`;
+  // On iOS, maps:// opens Apple Maps directly
+  window.location.href = url;
+  // Fallback after short delay if maps:// didn't work
+  setTimeout(() => { window.open(fallback, '_blank'); }, 500);
+}
+
+function copyCoords() {
+  const txt = document.getElementById('r-coords').textContent;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(txt).then(() => toast('Coordinates copied'));
+  } else {
+    // Fallback for older Safari
+    const el = document.createElement('textarea');
+    el.value = txt;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+    toast('Coordinates copied');
+  }
+}
+
+// ── Shot log ─────────────────────────────────────────────────────
+function renderLog() {
+  if (state.shots.length === 0) return;
+  document.getElementById('log-section').style.display = 'block';
+  const el = document.getElementById('shot-log');
+  el.innerHTML = state.shots.map((s, i) => `
+    <li class="shot-item" onclick="navToShot(${i})">
+      <div class="shot-num">${s.n}</div>
+      <div class="shot-detail">
+        <div class="shot-main">${s.carry} yds · ${s.angle >= 0 ? '+' : ''}${s.angle}° · ${s.time}</div>
+        <div class="shot-coords">${s.lat.toFixed(5)}, ${s.lng.toFixed(5)}</div>
+      </div>
+      <div class="shot-nav">Go</div>
+    </li>`).join('');
+}
+
+function navToShot(i) {
+  const s = state.shots[i];
+  const url = `maps://maps.apple.com/?daddr=${s.lat},${s.lng}&dirflg=w`;
+  const fallback = `https://maps.google.com/?q=${s.lat},${s.lng}`;
+  window.location.href = url;
+  setTimeout(() => { window.open(fallback, '_blank'); }, 500);
+}
+
+// ── Utilities ────────────────────────────────────────────────────
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function hideError(id) {
+  document.getElementById(id).classList.remove('visible');
+}
+
+// Resize map canvas on orientation change
+window.addEventListener('resize', () => {
+  if (state.lastResult) {
+    const r = state.lastResult;
+    drawMap(r.lat, r.lng, r.landLat, r.landLng, r.radiusFt);
+  }
+});
+</script>
+</body>
+</html>
